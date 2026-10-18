@@ -91,7 +91,7 @@ jobs:
           tags: ${{ env.IMAGE }}:${{ github.sha }}
           provenance: false
       - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: anchore/sbom-action@v0.17.7
+        uses: anchore/sbom-action@v0.24.3
         with:
           image: ${{ env.IMAGE }}@${{ steps.push.outputs.digest }}
           format: spdx-json
