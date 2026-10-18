@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 import time
 from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field
-from prometheus_client import make_asgi_app
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest, make_asgi_app
 
 from app import config
 from app.metrics import (
@@ -74,6 +74,10 @@ def create_app(store=None) -> FastAPI:
 
     metrics_app = make_asgi_app()
     app.mount("/metrics", metrics_app)
+
+    @app.get("/metrics")
+    def metrics_endpoint():
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     @app.get("/healthz")
     def healthz():
