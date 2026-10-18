@@ -135,9 +135,17 @@ REPO_SLUG=OWNER/REPO make deploy-verified IMAGE=ghcr.io/OWNER/REPO:COMMIT_SHA
 
 ## Screenshots
 
-Placeholders for observability dashboards and alert statuses:
-- Task API Overview Dashboard: `docs/img/grafana-dashboard.png` (placeholder)
-- Prometheus SLO Burn-Rate Alerts: `docs/img/prometheus-alerts.png` (placeholder)
+![Task API Overview - SLOs](docs/img/grafana-dashboard.png)
+*Task API Overview, SLOs row, during a chaos run with 30% injected errors. Availability SLI dropped to 68.5% and the burn rate sat far above the 6x and 14.4x threshold lines. Latency SLI stayed at 100%.*
+
+![Task API Overview - Metrics](docs/img/grafana-overview.png)
+*Request rate, 5xx error ratio, latency percentiles and status codes during the same run.*
+
+![Prometheus Alerts - AvailabilityFastBurn](docs/img/prometheus-alerts.png)
+*AvailabilityFastBurn in the firing state.*
+
+![Prometheus Alerts - AvailabilitySlowBurn](docs/img/prometheus-alerts-slowburn.png)
+*AvailabilitySlowBurn firing while LatencyBudgetBurn stays inactive.*
 
 ---
 
