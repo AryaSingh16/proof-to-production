@@ -1,0 +1,33 @@
+groups:
+  - name: task-api
+    rules:
+      - record: task_api:error_ratio:rate1m
+        expr: sum(rate(http_requests_total{job='task-api',status=~'5..'}[1m])) / sum(rate(http_requests_total{job='task-api'}[1m]))
+      - record: task_api:error_ratio:rate5m
+        expr: sum(rate(http_requests_total{job='task-api',status=~'5..'}[5m])) / sum(rate(http_requests_total{job='task-api'}[5m]))
+      - record: task_api:error_ratio:rate30m
+        expr: sum(rate(http_requests_total{job='task-api',status=~'5..'}[30m])) / sum(rate(http_requests_total{job='task-api'}[30m]))
+      - record: task_api:latency_bad_ratio:rate1m
+        expr: 1 - (sum(rate(http_request_duration_seconds_bucket{job='task-api',le='0.5'}[1m])) / sum(rate(http_request_duration_seconds_count{job='task-api'}[1m])))
+      - record: task_api:latency_bad_ratio:rate5m
+        expr: 1 - (sum(rate(http_request_duration_seconds_bucket{job='task-api',le='0.5'}[5m])) / sum(rate(http_request_duration_seconds_count{job='task-api'}[5m])))
+      - alert: TaskApiDown
+        expr: up{job='task-api'} == 0
+        for: 30s
+        labels: {severity: page}
+        annotations: {summary: 'task-api is down'}
+      - alert: AvailabilityFastBurn
+        expr: task_api:error_ratio:rate5m > (14.4 * 0.005) and task_api:error_ratio:rate1m > (14.4 * 0.005)
+        for: 1m
+        labels: {severity: page, slo: availability}
+        annotations: {summary: 'Availability error budget burning at more than 14.4x'}
+      - alert: AvailabilitySlowBurn
+        expr: task_api:error_ratio:rate30m > (6 * 0.005) and task_api:error_ratio:rate5m > (6 * 0.005)
+        for: 2m
+        labels: {severity: ticket, slo: availability}
+        annotations: {summary: 'Availability error budget burning at more than 6x'}
+      - alert: LatencyBudgetBurn
+        expr: task_api:latency_bad_ratio:rate5m > (6 * 0.05) and task_api:latency_bad_ratio:rate1m > (6 * 0.05)
+        for: 1m
+        labels: {severity: ticket, slo: latency}
+        annotations: {summary: 'Latency error budget burning at more than 6x'}
