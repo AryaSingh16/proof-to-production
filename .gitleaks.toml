@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Local demo Grafana credentials (admin:admin), not real secrets"
+regexes = ['''admin:admin''']
