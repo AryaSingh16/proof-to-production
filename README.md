@@ -119,12 +119,14 @@ REPO_SLUG=AryaSingh16/proof-to-production make deploy-verified IMAGE=ghcr.io/ary
 - **Keyless signing:** Short-lived GitHub OIDC identities are used for signing instead of long-lived private keys that could leak.
 - **Exact identity pinning:** Verification matches the exact identity `https://github.com/AryaSingh16/proof-to-production/.github/workflows/ci.yml@refs/heads/main`, so images signed by other workflows, branches or repositories are rejected.
 - **Multi-window, multi-burn-rate alerts:** Fast burn (14.4x) requires both the 5m and 1m windows to exceed the threshold; slow burn (6x) requires both the 30m and 5m windows. The long window shows the problem is real and the short window shows it is still happening, which reduces false alarms from brief spikes.
+- Trivy blocked an early build because the pinned FastAPI pulled in vulnerable Starlette versions (3 HIGH CVEs). The fix was upgrading FastAPI, not suppressing the findings.
+- Gitleaks scans the full git history. A narrow allowlist in .gitleaks.toml covers only the local demo Grafana credential admin:admin.
 
 ---
 
 ## Limitations
 
-- **CI has not yet been run on GitHub.** The workflow in `.github/workflows/ci.yml` was linted locally with `actionlint`, but the live run (GHCR push, Sigstore signing) is unverified at the time of writing.
+- CI runs on GitHub Actions and the pipeline is green. Actions are pinned by version tag, not commit SHA.
 - **Verification is a deploy-time script, not an enforced policy.** Nothing stops someone from running an unsigned image directly with Docker. Real clusters enforce this with an admission controller (for example Kyverno or the Sigstore policy controller), which this project does not include.
 - **Scaled-down alert windows.** Prometheus keeps 2 hours of data to fit the local memory budget, so the alert windows are shortened for the demo. Production would use 1h/5m for the 14.4x alert and 6h/30m for the 6x alert.
 - **Demo credentials.** The PostgreSQL and Grafana passwords in `compose.yaml` are local placeholders and must be replaced with proper secret management in production.
@@ -152,3 +154,16 @@ REPO_SLUG=AryaSingh16/proof-to-production make deploy-verified IMAGE=ghcr.io/ary
 
 ---
 
+## Proof it works
+
+![CI pipeline green on main](docs/img/ci-green.png)
+*CI pipeline green on main.*
+
+![Signature verified for the CI-built image](docs/img/verify-pass.png)
+*Signature verified for the CI-built image.*
+
+![An unsigned image is refused](docs/img/verify-refused.png)
+*An unsigned image is refused.*
+
+![Pull request with a fake secret fails the secret-scan check](docs/img/pr-secret-scan-failed.png)
+*A pull request with a fake secret fails the secret-scan check.*
