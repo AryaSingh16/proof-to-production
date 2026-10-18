@@ -1,0 +1,40 @@
+name: obs
+services:
+  db:
+    image: postgres:16-alpine
+    command: postgres -c shared_buffers=32MB -c max_connections=20
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app-demo-pass
+      POSTGRES_DB: tasks
+    volumes: [pgdata:/var/lib/postgresql/data]
+    mem_limit: 160m
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U app -d tasks']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  app:
+    build: .
+    image: ${APP_IMAGE:-task-api:dev}
+    depends_on:
+      db: {condition: service_healthy}
+    environment:
+      DATABASE_URL: postgresql://app:app-demo-pass@db:5432/tasks
+      ENABLE_FAULT_INJECTION: 'true'
+    ports: ['127.0.0.1:8081:8000']
+    mem_limit: 128m
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    healthcheck:
+      test: ['CMD', 'python', '-m', 'app.healthcheck']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+volumes:
+  pgdata:
