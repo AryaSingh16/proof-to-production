@@ -95,7 +95,7 @@ jobs:
           format: spdx-json
           output-file: sbom.spdx.json
       - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: sigstore/cosign-installer@v3.7.0
+        uses: sigstore/cosign-installer@v4.1.2
       - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           cosign sign --yes "${IMAGE}@${{ steps.push.outputs.digest }}"
