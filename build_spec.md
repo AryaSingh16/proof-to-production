@@ -19,7 +19,7 @@ commit / PR
    -> cosign sign + attest (keyless, GitHub OIDC)
    -> deploy script: cosign verify  --> refuse if unsigned
    -> docker compose up: app + postgres + prometheus + grafana
-Host ports: 8080 app, 3000 Grafana, 9090 Prometheus, all bound to 127.0.0.1.
+Host ports: 8081 app, 3000 Grafana, 9090 Prometheus, all bound to 127.0.0.1.
 2. Prerequisites (the human installs these before the agent starts)
 WSL2 Ubuntu, Docker (Desktop with WSL integration, or Docker Engine inside WSL) with the compose v2 plugin, make, git, curl, python3 (standard library only on the host). WSL memory limit 1.5 GB (see the .wslconfig note in the human checklist). Internet access to docker.io, ghcr.io and the Sigstore services.
 3. Repo layout
@@ -36,7 +36,7 @@ devsecops-observability-pipeline/
   requirements.txt requirements-dev.txt README.md SECURITY.md LICENSE
 4. Phases
 Phase 0: Preflight
-Run and report: docker info, docker compose version, make --version, curl --version, python3 --version, free -m. Ports 8080, 3000 and 9090 must be free: ss -ltn | grep -E ':(8080|3000|9090) ' must print nothing.
+Run and report: docker info, docker compose version, make --version, curl --version, python3 --version, free -m. Ports 8081, 3000 and 9090 must be free: ss -ltn | grep -E ':(8081|3000|9090) ' must print nothing.
 GATE: every tool prints a version, docker info succeeds, ports are free.
 Phase 1: Application and unit tests
 requirements.txt:
@@ -96,7 +96,7 @@ services:
     environment:
       DATABASE_URL: postgresql://app:app-demo-pass@db:5432/tasks
       ENABLE_FAULT_INJECTION: 'true'
-    ports: ['127.0.0.1:8080:8000']
+    ports: ['127.0.0.1:8081:8000']
     mem_limit: 128m
     read_only: true
     tmpfs: [/tmp]
@@ -112,7 +112,7 @@ services:
 volumes:
   pgdata:
 Makefile targets: build (docker compose build), up (docker compose up -d --build --wait), down (docker compose down), clean (docker compose down -v), ps, logs (docker compose logs -f --tail=100), mem (docker stats --no-stream --format '{{.Name}} {{.MemUsage}}').
-GATE: make up succeeds. curl -fsS localhost:8080/readyz returns 200. curl -fsS -X POST localhost:8080/tasks -H 'Content-Type: application/json' -d '{"title":"hello"}' returns a task and curl -fsS localhost:8080/tasks lists it. docker inspect obs-app-1 --format '{{.Config.User}}' prints 10001.
+GATE: make up succeeds. curl -fsS localhost:8081/readyz returns 200. curl -fsS -X POST localhost:8081/tasks -H 'Content-Type: application/json' -d '{"title":"hello"}' returns a task and curl -fsS localhost:8081/tasks lists it. docker inspect obs-app-1 --format '{{.Config.User}}' prints 10001.
 Phase 3: Monitoring and SLOs
 Add two services to compose.yaml, and add them to up:
 • prometheus: image prom/prometheus:v2.54.1; command list [--config.file=/etc/prometheus/prometheus.yml, --storage.tsdb.path=/prometheus, --storage.tsdb.retention.time=2h, --web.enable-lifecycle]; bind mounts ./monitoring/prometheus.yml to /etc/prometheus/prometheus.yml (read-only) and ./monitoring/rules.yml to /etc/prometheus/rules/rules.yml (read-only); port 127.0.0.1:9090:9090; mem_limit 192m; healthcheck CMD-SHELL wget -qO- http://localhost:9090/-/ready || exit 1 (interval 5s, retries 20); restart unless-stopped.
@@ -169,7 +169,7 @@ The le value '0.5' must match an existing histogram bucket exactly (it does).
 Grafana: datasource.yml provisions one Prometheus datasource (apiVersion 1, name Prometheus, type prometheus, uid prometheus, url http://prometheus:9090, access proxy, isDefault true). provider.yml is a file provider reading /var/lib/grafana-dashboards (apiVersion 1, one provider named default, type file, options path). dashboards/task-api.json is a valid Grafana dashboard titled 'Task API Overview', uid task-api-overview, every panel using the datasource {type: prometheus, uid: prometheus}. Panels: request rate by path; 5xx error ratio; latency p50/p95/p99; service up (up{job='task-api'}); requests by status code; tasks created per minute; then a row 'SLOs' with availability SLI (1 - task_api:error_ratio:rate5m, stat), availability burn rate (task_api:error_ratio:rate5m / 0.005, time series with threshold lines at 6 and 14.4), latency SLI (1 - task_api:latency_bad_ratio:rate5m, stat) and latency burn rate (task_api:latency_bad_ratio:rate5m / 0.05, time series with a threshold line at 6). 'No data' while there is no traffic is acceptable. Validate the JSON with python3 -m json.tool before starting.
 GATE: make up succeeds with all four services healthy; curl -fsS localhost:9090/api/v1/targets | grep -q 'health.:.up'; curl -fsS localhost:9090/api/v1/rules | grep -q AvailabilityFastBurn; curl -fsS 'localhost:3000/api/search?query=Task' | grep -q 'Task API Overview'; curl -fsS -u admin:admin 'localhost:3000/api/datasources/proxy/uid/prometheus/api/v1/query?query=up' | grep -q success; make mem output reported to the human, with the sum of the four containers under about 700 MiB at idle.
 Phase 4: Load, chaos and smoke tests
-scripts/loadgen.py: standard library only (urllib, threading, argparse). Flags --url (default http://localhost:8080), --duration (default 60), --rps (default 10), --error-rate (default 0), --slow-rate (default 0). Traffic mix: about 60% POST /tasks, 30% GET /tasks, 10% GET or DELETE by id. error-rate sends that fraction of requests to /debug/error, slow-rate to /debug/slow?ms=800. Print counts by status at the end and tolerate connection errors without crashing. Keep it to 4 threads at most.
+scripts/loadgen.py: standard library only (urllib, threading, argparse). Flags --url (default http://localhost:8081), --duration (default 60), --rps (default 10), --error-rate (default 0), --slow-rate (default 0). Traffic mix: about 60% POST /tasks, 30% GET /tasks, 10% GET or DELETE by id. error-rate sends that fraction of requests to /debug/error, slow-rate to /debug/slow?ms=800. Print counts by status at the end and tolerate connection errors without crashing. Keep it to 4 threads at most.
 scripts/smoke.sh (set -euo pipefail, curl -fsS, retries up to 60s where noted): healthz and readyz return 200; create then list a task; /metrics contains http_requests_total; the Prometheus target for task-api is up (retry); rules are loaded (retry); the Grafana dashboard exists (retry). Exit non-zero with a clear message on any failure.
 scripts/chaos.sh subcommands (print what it does and the result):
 • app-kill: run docker compose kill app, wait up to 30s for the restart policy to bring it back (if it does not, run docker compose up -d app and say so), poll /readyz until 200, print the recovery seconds.
